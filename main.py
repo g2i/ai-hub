@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, HTTPException, Response
 import httpx
 import os
 import logging
+import socket
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,12 +12,78 @@ app = FastAPI()
 
 # Get the bearer token from environment variable
 DOCLING_API_TOKEN = os.getenv("DOCLING_API_TOKEN")
-# Use the simple service name for Railway internal DNS
-DOCLING_API_URL = os.getenv("DOCLING_API_URL", "http://docling-serve-cpu")
 
-@app.post("/health")
+# Configure service using Railway private networking format
+# IMPORTANT: Must use http:// (not https://) and include port
+DOCLING_SERVICE_NAME = os.getenv("DOCLING_SERVICE_NAME", "docling-serve-cpu")
+DOCLING_SERVICE_PORT = os.getenv("DOCLING_SERVICE_PORT", "5001")  # Docling serve default port is 5001
+DOCLING_API_URL = os.getenv(
+    "DOCLING_API_URL", 
+    f"http://{DOCLING_SERVICE_NAME}.railway.internal:{DOCLING_SERVICE_PORT}"
+)
+
+@app.get("/health")
 async def health():
     return {"status": "ok"}
+
+@app.get("/diagnose")
+async def diagnose():
+    """Diagnostic endpoint to check connectivity to the Docling service"""
+    results = {}
+    
+    # Check environment variables
+    results["env"] = {
+        "DOCLING_API_TOKEN": "configured" if DOCLING_API_TOKEN else "missing",
+        "DOCLING_SERVICE_NAME": DOCLING_SERVICE_NAME,
+        "DOCLING_SERVICE_PORT": DOCLING_SERVICE_PORT,
+        "DOCLING_API_URL": DOCLING_API_URL
+    }
+    
+    # Try to resolve the hostname
+    try:
+        host = f"{DOCLING_SERVICE_NAME}.railway.internal"
+        ip = socket.gethostbyname(host)
+        results["dns_lookup"] = {"status": "success", "ip": ip}
+    except Exception as e:
+        results["dns_lookup"] = {"status": "failed", "error": str(e)}
+    
+    # Try alternate names with ports
+    alternates = [
+        f"http://{DOCLING_SERVICE_NAME}.railway.internal:{DOCLING_SERVICE_PORT}",
+        f"http://{DOCLING_SERVICE_NAME}.railway.internal:5001",
+        f"http://{DOCLING_SERVICE_NAME}:{DOCLING_SERVICE_PORT}"
+    ]
+    
+    # Try connections to various health endpoints and base URLs
+    async with httpx.AsyncClient() as client:
+        results["connection_tests"] = {}
+        for alt in alternates:
+            # Test health endpoint
+            health_url = f"{alt}/health"
+            try:
+                logger.info(f"Testing connection to: {health_url}")
+                response = await client.get(health_url, timeout=5.0)
+                results["connection_tests"][health_url] = {
+                    "status": "success", 
+                    "status_code": response.status_code,
+                    "content": response.text[:100]  # First 100 chars
+                }
+            except Exception as e:
+                results["connection_tests"][health_url] = {"status": "failed", "error": str(e)}
+            
+            # Test base URL
+            try:
+                logger.info(f"Testing connection to base URL: {alt}")
+                response = await client.get(alt, timeout=5.0)
+                results["connection_tests"][alt] = {
+                    "status": "success", 
+                    "status_code": response.status_code,
+                    "content": response.text[:100]  # First 100 chars
+                }
+            except Exception as e:
+                results["connection_tests"][alt] = {"status": "failed", "error": str(e)}
+    
+    return results
 
 @app.post("/convert/file")
 async def proxy_convert_file(request: Request):
