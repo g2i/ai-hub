@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 import httpx
 import os
 import logging
+from typing import Optional
 
 # Configure logging (basic)
 logging.basicConfig(level=logging.INFO)
@@ -120,6 +121,92 @@ async def proxy_convert_source(request: Request):
             )
         except Exception as e:
             # Log the specific error with traceback
+            logger.error(f"Error communicating with Docling API at {target_url}:", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Error communicating with backend service"
+            )
+
+@app.post("/convert/source/async")
+async def proxy_convert_source_async(request: Request):
+    """Proxies the asynchronous convert/source endpoint to Docling Serve"""
+    content_type = request.headers.get("Content-Type", "")
+    raw_body = await request.body()
+    
+    headers = {"Content-Type": content_type}
+    
+    target_url = f"{DOCLING_API_URL}/v1alpha/convert/source/async"
+    logger.info(f"Forwarding async source conversion request to {target_url}")
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                target_url,
+                content=raw_body,
+                headers=headers,
+                timeout=30.0  # Shorter timeout for async request initiation
+            )
+            
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+        except Exception as e:
+            logger.error(f"Error communicating with Docling API at {target_url}:", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Error communicating with backend service"
+            )
+
+@app.get("/status/poll/{task_id}")
+async def proxy_task_status(task_id: str, request: Request, wait: Optional[float] = 0.0):
+    """Proxies the status polling endpoint to Docling Serve"""
+    target_url = f"{DOCLING_API_URL}/v1alpha/status/poll/{task_id}"
+    
+    if wait > 0:
+        target_url += f"?wait={wait}"
+    
+    logger.info(f"Polling task status from {target_url}")
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                target_url,
+                timeout=max(wait + 5.0, 30.0)  # Add buffer to wait time
+            )
+            
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+        except Exception as e:
+            logger.error(f"Error communicating with Docling API at {target_url}:", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="Error communicating with backend service"
+            )
+
+@app.get("/result/{task_id}")
+async def proxy_task_result(task_id: str, request: Request):
+    """Proxies the task result endpoint to Docling Serve"""
+    target_url = f"{DOCLING_API_URL}/v1alpha/result/{task_id}"
+    logger.info(f"Fetching task result from {target_url}")
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(
+                target_url,
+                timeout=60.0
+            )
+            
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+        except Exception as e:
             logger.error(f"Error communicating with Docling API at {target_url}:", exc_info=True)
             raise HTTPException(
                 status_code=500,
