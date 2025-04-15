@@ -21,7 +21,8 @@ DOCLING_API_TOKEN = os.getenv("DOCLING_API_TOKEN")
 # 2. Must include the port 
 # 3. Must use the format service-name.railway.internal
 DOCLING_SERVICE_NAME = os.getenv("DOCLING_SERVICE_NAME", "docling-serve-cpu")
-DOCLING_SERVICE_PORT = os.getenv("DOCLING_SERVICE_PORT", "5001")  # Docling serve default port is 5001
+# Railway typically assigns port 3000 if not specified
+DOCLING_SERVICE_PORT = os.getenv("DOCLING_SERVICE_PORT", "3000")
 
 # Try direct IPv6 address if needed
 USE_DIRECT_IPV6 = os.getenv("USE_DIRECT_IPV6", "false").lower() == "true"
@@ -67,13 +68,13 @@ async def info():
                 "api_token_configured": DOCLING_API_TOKEN is not None
             },
             "railway_setup": {
-                "fastapi_start_command": "uvicorn main:app --host :: --port $PORT",
+                "fastapi_start_command": "uvicorn main:app --host :: --port ${PORT}",
                 "ipv6_support": "Required for Railway private networking",
                 "private_networking": "Enabled by default for all services in the same project"
             },
             "docling_setup": {
-                "required_port": "Docling serve default port is 5001",
-                "required_start_command": "Make sure Docling service is binding to :: for IPv6 support",
+                "required_port": "Railway typically assigns port 3000 by default",
+                "required_start_command": "uvicorn app:app --host :: --port ${PORT}",
                 "ipv6_binding": "The service must bind to IPv6 (::) to be reachable via the private network"
             }
         }
@@ -130,6 +131,39 @@ async def diagnose():
         "hostname": socket.gethostname(),
         "platform_info": os.uname() if hasattr(os, 'uname') else "Not available"
     }
+    
+    # Try port scanning to find which ports are open
+    open_ports = []
+    common_ports = [3000, 5000, 5001, 8000, 8080]
+    for port in common_ports:
+        try:
+            s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            s.settimeout(1)
+            host = f"{DOCLING_SERVICE_NAME}.railway.internal"
+            # Get IPv6 address
+            addrinfo = socket.getaddrinfo(
+                host, port, socket.AF_INET6, socket.SOCK_STREAM
+            )
+            if addrinfo:
+                addr = addrinfo[0][4]
+                logger.info(f"Testing connection to {addr[0]}:{port}")
+                s.connect((addr[0], port))
+                open_ports.append(port)
+            s.close()
+        except:
+            pass
+    
+    if open_ports:
+        results["port_scan"] = {
+            "status": "success",
+            "open_ports": open_ports,
+            "message": f"Found open ports: {', '.join(map(str, open_ports))}"
+        }
+    else:
+        results["port_scan"] = {
+            "status": "failed",
+            "message": "No open ports found on common port numbers"
+        }
     
     # Try connections using various methods
     results["connection_tests"] = {}
@@ -200,6 +234,15 @@ async def diagnose():
     # Provide recommendations based on results
     results["recommendations"] = {}
     
+    # If we found open ports from the scan but not using the configured port
+    if results.get("port_scan", {}).get("status") == "success" and int(DOCLING_SERVICE_PORT) not in results.get("port_scan", {}).get("open_ports", []):
+        open_ports = results.get("port_scan", {}).get("open_ports", [])
+        if open_ports:
+            results["recommendations"]["wrong_port"] = {
+                "action": "Update DOCLING_SERVICE_PORT environment variable",
+                "instruction": f"Set DOCLING_SERVICE_PORT={open_ports[0]} in your environment variables"
+            }
+    
     # Check if we found an IPv6 address but couldn't connect
     if ipv6_address and all("failed" in v.get("status", "") for k, v in results["connection_tests"].items() if "with auth" in k):
         results["recommendations"]["ipv6_direct"] = {
@@ -211,7 +254,7 @@ async def diagnose():
     if results.get("raw_socket_test", {}).get("status") == "failed":
         results["recommendations"]["check_service"] = {
             "action": "Ensure Docling service is listening on IPv6",
-            "instruction": "Configure the Docling service to bind to :: instead of 0.0.0.0 or localhost"
+            "instruction": "Configure the Docling service to bind to :: instead of 0.0.0.0 or localhost using the command: uvicorn app:app --host :: --port ${PORT}"
         }
     
     return results
