@@ -48,8 +48,8 @@ def authenticate_basic_user(credentials: HTTPBasicCredentials = Depends(security
 # Bearer Token Middleware (for non-excluded paths)
 @app.middleware("http")
 async def authenticate_bearer_request(request: Request, call_next):
-    # Exclude exact paths and UI path prefix
-    if request.url.path in EXCLUDED_PATHS or request.url.path.startswith("/ui/"):
+    # Exclude exact paths, /ui, and /ui/ prefix
+    if request.url.path in EXCLUDED_PATHS or request.url.path == "/ui" or request.url.path.startswith("/ui/"):
         response = await call_next(request)
         return response
 
@@ -92,9 +92,26 @@ async def authenticate_bearer_request(request: Request, call_next):
 async def health():
     return {"status": "ok"}
 
-# UI Proxy Endpoint (Basic Auth)
+# UI Proxy Endpoint Root (Basic Auth)
+@app.get("/ui", include_in_schema=False) 
+async def proxy_ui_root(request: Request, user: str = Depends(authenticate_basic_user)):
+    target_url = f"{DOCLING_API_URL}/ui"
+    async with httpx.AsyncClient() as client:
+        try:
+            fwd_headers = {h: v for h, v in request.headers.items() if h.lower() in ['accept', 'accept-language', 'user-agent']}
+            backend_request = client.build_request(method=request.method, url=target_url, headers=fwd_headers, params=request.query_params)
+            backend_response = await client.send(backend_request, stream=True)
+            content = await backend_response.aread()
+            response_headers = dict(backend_response.headers)
+            return Response(content=content, status_code=backend_response.status_code, headers=response_headers)
+        except httpx.ConnectError:
+             raise HTTPException(status_code=503, detail="Cannot connect to the UI service.")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail="Error proxying UI request.")
+
+# UI Proxy Endpoint Subpaths (Basic Auth)
 @app.get("/ui/{path:path}", include_in_schema=False)
-async def proxy_ui(path: str, request: Request, user: str = Depends(authenticate_basic_user)):
+async def proxy_ui_subpath(path: str, request: Request, user: str = Depends(authenticate_basic_user)):
     target_url = f"{DOCLING_API_URL}/ui/{path}"
     async with httpx.AsyncClient() as client:
         try:
