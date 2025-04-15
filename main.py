@@ -79,6 +79,7 @@ async def proxy_convert_file(request: Request):
                 target_url,
                 content=raw_body,
                 headers=headers,
+                timeout=300.0
             )
             
             return Response(
@@ -109,6 +110,7 @@ async def proxy_convert_source(request: Request):
                 target_url,
                 content=raw_body,
                 headers=headers,
+                timeout=300.0
             )
             
             return Response(
