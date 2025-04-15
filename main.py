@@ -6,6 +6,8 @@ app = FastAPI()
 
 # Get the bearer token from environment variable
 DOCLING_API_TOKEN = os.getenv("DOCLING_API_TOKEN")
+# Use the Railway internal DNS name for the docling service
+DOCLING_API_URL = os.getenv("DOCLING_API_URL", "http://docling-serve-cpu.railway.internal")
 
 @app.post("/health")
 async def health():
@@ -29,15 +31,32 @@ async def proxy_convert_file(request: Request):
     
     # Forward the request as is
     async with httpx.AsyncClient() as client:
-        response = await client.post(
-            "http://docling-serve-cpu.railway.internal/v1alpha/convert/file",
-            content=raw_body,  # Use raw content instead of json
-            headers=headers
-        )
-        
-        # Return the response with the same status code and headers
-        return Response(
-            content=response.content,
-            status_code=response.status_code,
-            headers=dict(response.headers)
-        )
+        try:
+            response = await client.post(
+                f"{DOCLING_API_URL}/v1alpha/convert/file",
+                content=raw_body,  # Use raw content instead of json
+                headers=headers,
+                timeout=30.0  # Add a timeout to prevent hanging requests
+            )
+            
+            # Return the response with the same status code and headers
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+        except httpx.ConnectError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=f"Could not connect to Docling API: {str(e)}"
+            )
+        except httpx.TimeoutException:
+            raise HTTPException(
+                status_code=504,
+                detail="Request to Docling API timed out"
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Error communicating with Docling API: {str(e)}"
+            )
