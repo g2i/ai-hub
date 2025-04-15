@@ -72,7 +72,7 @@ Retrieve the result of a completed task.
 
 ```bash
 curl -X 'POST' \
-  'https://fastapi-production-cf71.up.railway.app/convert/source' \
+  'https://docling.g2i.co/convert/source' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -H 'authorization: Bearer <api_token>' \
@@ -107,7 +107,7 @@ curl -X 'POST' \
 
 ```bash
 curl -X 'POST' \
-  'https://fastapi-production-cf71.up.railway.app/convert/file' \
+  'https://docling.g2i.co/convert/file' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
   -H 'authorization: Bearer <api_token>' \
@@ -136,7 +136,7 @@ curl -X 'POST' \
 ```bash
 # Start async processing
 curl -X 'POST' \
-  'https://fastapi-production-cf71.up.railway.app/convert/source/async' \
+  'https://docling.g2i.co/convert/source/async' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -H 'authorization: Bearer <api_token>' \
@@ -159,12 +159,12 @@ curl -X 'POST' \
 
 # Check status (optional: wait for up to 5 seconds)
 curl -X 'GET' \
-  'https://fastapi-production-cf71.up.railway.app/status/poll/123e4567-e89b-12d3-a456-426614174000?wait=5' \
+  'https://docling.g2i.co/status/poll/123e4567-e89b-12d3-a456-426614174000?wait=5' \
   -H 'authorization: Bearer <api_token>'
 
 # Get result when complete
 curl -X 'GET' \
-  'https://fastapi-production-cf71.up.railway.app/result/123e4567-e89b-12d3-a456-426614174000' \
+  'https://docling.g2i.co/result/123e4567-e89b-12d3-a456-426614174000' \
   -H 'authorization: Bearer <api_token>' \
   --output '/path/to/output.zip'
 ```
