@@ -3,6 +3,7 @@ import httpx
 import os
 import logging
 import socket
+import urllib.parse
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -21,10 +22,20 @@ DOCLING_API_TOKEN = os.getenv("DOCLING_API_TOKEN")
 # 3. Must use the format service-name.railway.internal
 DOCLING_SERVICE_NAME = os.getenv("DOCLING_SERVICE_NAME", "docling-serve-cpu")
 DOCLING_SERVICE_PORT = os.getenv("DOCLING_SERVICE_PORT", "5001")  # Docling serve default port is 5001
-DOCLING_API_URL = os.getenv(
-    "DOCLING_API_URL", 
-    f"http://{DOCLING_SERVICE_NAME}.railway.internal:{DOCLING_SERVICE_PORT}"
-)
+
+# Try direct IPv6 address if needed
+USE_DIRECT_IPV6 = os.getenv("USE_DIRECT_IPV6", "false").lower() == "true"
+IPV6_ADDRESS = os.getenv("IPV6_ADDRESS", "")
+
+# Construct the API URL based on available information
+if USE_DIRECT_IPV6 and IPV6_ADDRESS:
+    # Format for direct IPv6 in URL: http://[IPv6]:port
+    DOCLING_API_URL = f"http://[{IPV6_ADDRESS}]:{DOCLING_SERVICE_PORT}"
+else:
+    DOCLING_API_URL = os.getenv(
+        "DOCLING_API_URL", 
+        f"http://{DOCLING_SERVICE_NAME}.railway.internal:{DOCLING_SERVICE_PORT}"
+    )
 
 # OAuth proxy support - similar to OpenShift pattern
 USE_OAUTH_PROXY = os.getenv("USE_OAUTH_PROXY", "false").lower() == "true"
@@ -51,6 +62,8 @@ async def info():
                 "DOCLING_API_URL": DOCLING_API_URL,
                 "USE_OAUTH_PROXY": USE_OAUTH_PROXY,
                 "SKIP_AUTH_FOR_INTERNAL": SKIP_AUTH_FOR_INTERNAL,
+                "USE_DIRECT_IPV6": USE_DIRECT_IPV6,
+                "IPV6_ADDRESS": IPV6_ADDRESS if IPV6_ADDRESS else "Not set",
                 "api_token_configured": DOCLING_API_TOKEN is not None
             },
             "railway_setup": {
@@ -60,7 +73,8 @@ async def info():
             },
             "docling_setup": {
                 "required_port": "Docling serve default port is 5001",
-                "required_start_command": "Make sure Docling service is binding to :: for IPv6 support"
+                "required_start_command": "Make sure Docling service is binding to :: for IPv6 support",
+                "ipv6_binding": "The service must bind to IPv6 (::) to be reachable via the private network"
             }
         }
     }
@@ -77,10 +91,13 @@ async def diagnose():
         "DOCLING_SERVICE_PORT": DOCLING_SERVICE_PORT,
         "DOCLING_API_URL": DOCLING_API_URL,
         "USE_OAUTH_PROXY": USE_OAUTH_PROXY,
-        "SKIP_AUTH_FOR_INTERNAL": SKIP_AUTH_FOR_INTERNAL
+        "SKIP_AUTH_FOR_INTERNAL": SKIP_AUTH_FOR_INTERNAL,
+        "USE_DIRECT_IPV6": USE_DIRECT_IPV6,
+        "IPV6_ADDRESS": IPV6_ADDRESS if IPV6_ADDRESS else "Not set"
     }
     
     # Try to resolve the hostname using IPv6
+    ipv6_address = None
     try:
         host = f"{DOCLING_SERVICE_NAME}.railway.internal"
         # Try IPv6 lookup
@@ -92,6 +109,7 @@ async def diagnose():
         )
         if addrinfo:
             addr = addrinfo[0][4]
+            ipv6_address = addr[0]  # Save for potential direct connection testing
             results["dns_lookup_ipv6"] = {
                 "status": "success", 
                 "ip": f"[{addr[0]}]:{addr[1]}"
@@ -113,47 +131,88 @@ async def diagnose():
         "platform_info": os.uname() if hasattr(os, 'uname') else "Not available"
     }
     
-    # Try alternate names with ports
-    alternates = [
-        f"http://{DOCLING_SERVICE_NAME}.railway.internal:{DOCLING_SERVICE_PORT}",
-        # Alternate hostname format based on documentation
-        f"http://{DOCLING_SERVICE_NAME}:{DOCLING_SERVICE_PORT}"
+    # Try connections using various methods
+    results["connection_tests"] = {}
+
+    # Setup connection test URLs
+    test_urls = [
+        # Test domain-based URLs
+        f"http://{DOCLING_SERVICE_NAME}.railway.internal:{DOCLING_SERVICE_PORT}/health",
+        f"http://{DOCLING_SERVICE_NAME}:{DOCLING_SERVICE_PORT}/health",
     ]
     
-    # Try connections to various health endpoints and base URLs
+    # Add direct IPv6 connection if we have an address
+    if ipv6_address or IPV6_ADDRESS:
+        addr_to_use = IPV6_ADDRESS if IPV6_ADDRESS else ipv6_address
+        test_urls.append(f"http://[{addr_to_use}]:{DOCLING_SERVICE_PORT}/health")
+    
+    # Test basic socket connectivity first
+    if ipv6_address:
+        try:
+            # Create a socket and try to connect directly
+            s = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+            s.settimeout(2)  # 2 second timeout
+            
+            logger.info(f"Testing raw socket IPv6 connection to {ipv6_address}:{DOCLING_SERVICE_PORT}")
+            s.connect((ipv6_address, int(DOCLING_SERVICE_PORT)))
+            s.close()
+            
+            results["raw_socket_test"] = {
+                "status": "success",
+                "message": f"Successfully connected to {ipv6_address}:{DOCLING_SERVICE_PORT}"
+            }
+        except Exception as e:
+            results["raw_socket_test"] = {
+                "status": "failed",
+                "error": str(e)
+            }
+    
+    # Test connections with httpx
     async with httpx.AsyncClient() as client:
-        results["connection_tests"] = {}
-        
         # First try without auth header
-        for alt in alternates:
-            # Test health endpoint without auth
-            health_url = f"{alt}/health"
+        for url in test_urls:
             try:
-                logger.info(f"Testing connection without auth to: {health_url}")
-                response = await client.get(health_url, timeout=5.0)
-                results["connection_tests"][f"{health_url} (no auth)"] = {
+                logger.info(f"Testing connection without auth to: {url}")
+                response = await client.get(url, timeout=5.0)
+                results["connection_tests"][f"{url} (no auth)"] = {
                     "status": "success", 
                     "status_code": response.status_code,
                     "content": response.text[:100]  # First 100 chars
                 }
             except Exception as e:
-                results["connection_tests"][f"{health_url} (no auth)"] = {"status": "failed", "error": str(e)}
+                results["connection_tests"][f"{url} (no auth)"] = {"status": "failed", "error": str(e)}
         
         # Now try with auth header if available
         if DOCLING_API_TOKEN:
             headers = {"Authorization": f"Bearer {DOCLING_API_TOKEN}"}
-            for alt in alternates:
-                health_url = f"{alt}/health"
+            for url in test_urls:
                 try:
-                    logger.info(f"Testing connection with auth to: {health_url}")
-                    response = await client.get(health_url, headers=headers, timeout=5.0)
-                    results["connection_tests"][f"{health_url} (with auth)"] = {
+                    logger.info(f"Testing connection with auth to: {url}")
+                    response = await client.get(url, headers=headers, timeout=5.0)
+                    results["connection_tests"][f"{url} (with auth)"] = {
                         "status": "success", 
                         "status_code": response.status_code,
                         "content": response.text[:100]  # First 100 chars
                     }
                 except Exception as e:
-                    results["connection_tests"][f"{health_url} (with auth)"] = {"status": "failed", "error": str(e)}
+                    results["connection_tests"][f"{url} (with auth)"] = {"status": "failed", "error": str(e)}
+    
+    # Provide recommendations based on results
+    results["recommendations"] = {}
+    
+    # Check if we found an IPv6 address but couldn't connect
+    if ipv6_address and all("failed" in v.get("status", "") for k, v in results["connection_tests"].items() if "with auth" in k):
+        results["recommendations"]["ipv6_direct"] = {
+            "action": "Try direct IPv6 connection",
+            "instruction": f"Set USE_DIRECT_IPV6=true and IPV6_ADDRESS={ipv6_address} in your environment variables"
+        }
+    
+    # If raw socket test failed, suggest checking if the service is listening on IPv6
+    if results.get("raw_socket_test", {}).get("status") == "failed":
+        results["recommendations"]["check_service"] = {
+            "action": "Ensure Docling service is listening on IPv6",
+            "instruction": "Configure the Docling service to bind to :: instead of 0.0.0.0 or localhost"
+        }
     
     return results
 
