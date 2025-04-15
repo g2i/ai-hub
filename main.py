@@ -87,8 +87,8 @@ async def proxy_convert_file(request: Request):
                 headers=dict(response.headers)
             )
         except Exception as e:
-            error_message = f"Error communicating with Docling API at {target_url}: {str(e)}"
-            logger.error(error_message)
+            # Log the specific error with traceback
+            logger.error(f"Error communicating with Docling API at {target_url}:", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail="Error communicating with backend service"
@@ -117,8 +117,8 @@ async def proxy_convert_source(request: Request):
                 headers=dict(response.headers)
             )
         except Exception as e:
-            error_message = f"Error communicating with Docling API at {target_url}: {str(e)}"
-            logger.error(error_message)
+            # Log the specific error with traceback
+            logger.error(f"Error communicating with Docling API at {target_url}:", exc_info=True)
             raise HTTPException(
                 status_code=500,
                 detail="Error communicating with backend service"
