@@ -2,13 +2,18 @@ from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.responses import JSONResponse
 import httpx
 import os
+import logging
+
+# Configure logging (basic)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
 DOCLING_API_TOKEN = os.getenv("DOCLING_API_TOKEN")
 
 DOCLING_SERVICE_NAME = os.getenv("DOCLING_SERVICE_NAME", "docling-serve-cpu")
-DOCLING_SERVICE_PORT = os.getenv("DOCLING_SERVICE_PORT", "")
+DOCLING_SERVICE_PORT = os.getenv("DOCLING_SERVICE_PORT", "3000")
 
 DOCLING_API_URL = os.getenv(
     "DOCLING_API_URL", 
@@ -83,6 +88,7 @@ async def proxy_convert_file(request: Request):
             )
         except Exception as e:
             error_message = f"Error communicating with Docling API at {target_url}: {str(e)}"
+            logger.error(error_message)
             raise HTTPException(
                 status_code=500,
                 detail="Error communicating with backend service"
@@ -112,6 +118,7 @@ async def proxy_convert_source(request: Request):
             )
         except Exception as e:
             error_message = f"Error communicating with Docling API at {target_url}: {str(e)}"
+            logger.error(error_message)
             raise HTTPException(
                 status_code=500,
                 detail="Error communicating with backend service"
