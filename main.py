@@ -14,7 +14,10 @@ app = FastAPI()
 DOCLING_API_TOKEN = os.getenv("DOCLING_API_TOKEN")
 
 # Configure service using Railway private networking format
-# IMPORTANT: Must use http:// (not https://) and include port
+# IMPORTANT: For Railway private networking:
+# 1. Must use http:// (not https://)
+# 2. Must include the port 
+# 3. Must use the format service-name.railway.internal
 DOCLING_SERVICE_NAME = os.getenv("DOCLING_SERVICE_NAME", "docling-serve-cpu")
 DOCLING_SERVICE_PORT = os.getenv("DOCLING_SERVICE_PORT", "5001")  # Docling serve default port is 5001
 DOCLING_API_URL = os.getenv(
@@ -39,18 +42,42 @@ async def diagnose():
         "DOCLING_API_URL": DOCLING_API_URL
     }
     
-    # Try to resolve the hostname
+    # Try to resolve the hostname using IPv6
     try:
         host = f"{DOCLING_SERVICE_NAME}.railway.internal"
-        ip = socket.gethostbyname(host)
-        results["dns_lookup"] = {"status": "success", "ip": ip}
+        # Try IPv6 lookup
+        addrinfo = socket.getaddrinfo(
+            host, 
+            int(DOCLING_SERVICE_PORT), 
+            socket.AF_INET6, 
+            socket.SOCK_STREAM
+        )
+        if addrinfo:
+            addr = addrinfo[0][4]
+            results["dns_lookup_ipv6"] = {
+                "status": "success", 
+                "ip": f"[{addr[0]}]:{addr[1]}"
+            }
     except Exception as e:
-        results["dns_lookup"] = {"status": "failed", "error": str(e)}
+        results["dns_lookup_ipv6"] = {"status": "failed", "error": str(e)}
+    
+    # Fallback to IPv4
+    try:
+        ip = socket.gethostbyname(host)
+        results["dns_lookup_ipv4"] = {"status": "success", "ip": ip}
+    except Exception as e:
+        results["dns_lookup_ipv4"] = {"status": "failed", "error": str(e)}
+    
+    # Check environment info
+    results["socket_info"] = {
+        "IPv6 supported": socket.has_ipv6,
+        "hostname": socket.gethostname()
+    }
     
     # Try alternate names with ports
     alternates = [
         f"http://{DOCLING_SERVICE_NAME}.railway.internal:{DOCLING_SERVICE_PORT}",
-        f"http://{DOCLING_SERVICE_NAME}.railway.internal:5001",
+        # Alternate hostname format based on documentation
         f"http://{DOCLING_SERVICE_NAME}:{DOCLING_SERVICE_PORT}"
     ]
     
@@ -71,17 +98,18 @@ async def diagnose():
             except Exception as e:
                 results["connection_tests"][health_url] = {"status": "failed", "error": str(e)}
             
-            # Test base URL
+            # Test v1alpha endpoint
+            api_url = f"{alt}/v1alpha/convert/file"
             try:
-                logger.info(f"Testing connection to base URL: {alt}")
-                response = await client.get(alt, timeout=5.0)
-                results["connection_tests"][alt] = {
+                logger.info(f"Testing connection to API endpoint: {api_url}")
+                response = await client.get(api_url, timeout=5.0)
+                results["connection_tests"][api_url] = {
                     "status": "success", 
                     "status_code": response.status_code,
                     "content": response.text[:100]  # First 100 chars
                 }
             except Exception as e:
-                results["connection_tests"][alt] = {"status": "failed", "error": str(e)}
+                results["connection_tests"][api_url] = {"status": "failed", "error": str(e)}
     
     return results
 
@@ -107,6 +135,7 @@ async def proxy_convert_file(request: Request):
     # Forward the request as is
     async with httpx.AsyncClient() as client:
         try:
+            # Configure HTTP client to use IPv6 if available
             response = await client.post(
                 target_url,
                 content=raw_body,  # Use raw content instead of json
