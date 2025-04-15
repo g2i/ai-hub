@@ -87,3 +87,32 @@ async def proxy_convert_file(request: Request):
                 status_code=500,
                 detail="Error communicating with backend service"
             )
+    
+@app.post("/convert/source")
+async def proxy_convert_source(request: Request):
+    content_type = request.headers.get("Content-Type", "")
+    raw_body = await request.body()
+    
+    headers = {"Content-Type": content_type}
+    
+    target_url = f"{DOCLING_API_URL}/v1alpha/convert/source"
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(
+                target_url,
+                content=raw_body,
+                headers=headers,
+            )
+            
+            return Response(
+                content=response.content,
+                status_code=response.status_code,
+                headers=dict(response.headers)
+            )
+        except Exception as e:
+            error_message = f"Error communicating with Docling API at {target_url}: {str(e)}"
+            raise HTTPException(
+                status_code=500,
+                detail="Error communicating with backend service"
+            )
