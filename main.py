@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Response
 import httpx
 import os
 
@@ -17,18 +17,27 @@ async def proxy_convert_file(request: Request):
     if not DOCLING_API_TOKEN:
         raise HTTPException(status_code=500, detail="API token not configured")
     
-    request_body = await request.json()
+    # Get raw request content instead of parsing as JSON
+    content_type = request.headers.get("Content-Type", "")
+    raw_body = await request.body()
     
-    # Set up headers with bearer token
+    # Set up headers with bearer token and preserve content-type
     headers = {
-        "Authorization": f"Bearer {DOCLING_API_TOKEN}"
+        "Authorization": f"Bearer {DOCLING_API_TOKEN}",
+        "Content-Type": content_type
     }
     
+    # Forward the request as is
     async with httpx.AsyncClient() as client:
         response = await client.post(
             "http://docling-serve-cpu.railway.internal/v1alpha/convert/file",
-            json=request_body,
+            content=raw_body,  # Use raw content instead of json
             headers=headers
         )
         
-        return response.json()
+        # Return the response with the same status code and headers
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            headers=dict(response.headers)
+        )
