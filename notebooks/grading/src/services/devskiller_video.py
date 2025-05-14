@@ -54,8 +54,8 @@ class DevskillerVideoService:
         Returns:
             The authentication cookies for API access.
         """
-        username = username or self.username or "ivor@g2i.co"
-        password = password or self.password or "W7Pzkr2WN9RaFxR"
+        username = username or self.username
+        password = password or self.password
         
         try:
             page = await self._initialize_browser()
@@ -388,7 +388,11 @@ class DevskillerVideoService:
             # Successful response – return bytes if it's a video/binary else raise
             if response.ok and ("application/octet-stream" in content_type or "video" in content_type):
                 video_bytes = await response.body()
-                if save_path and video_bytes:
+                if video_bytes:
+                    if save_path is None:
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        os.makedirs("@videos", exist_ok=True)
+                        save_path = os.path.join("@videos", f"video_{timestamp}.mp4")
                     with open(save_path, "wb") as f:
                         f.write(video_bytes)
                     print(f"Video saved to {save_path}")
@@ -421,8 +425,8 @@ class DevskillerVideoService:
                             if video_bytes:
                                 if save_path is None:
                                     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                                    os.makedirs("videos", exist_ok=True)
-                                    save_path = os.path.join("videos", f"video_{timestamp}.mp4")
+                                    os.makedirs("@videos", exist_ok=True)
+                                    save_path = os.path.join("@videos", f"video_{timestamp}.mp4")
                                 with open(save_path, "wb") as f:
                                     f.write(video_bytes)
                                 print(f"Video saved to {save_path}")
@@ -431,7 +435,7 @@ class DevskillerVideoService:
             
             # Take a screenshot to help diagnose issues
             # await self._page.screenshot(path="video_download.png")
-            print("Saved page screenshot to video_download.png")
+            # print("Saved page screenshot to video_download.png")
             
             # Get the content as a fallback
             html_content = await self._page.content()
