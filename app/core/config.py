@@ -1,6 +1,6 @@
 import os
 from pydantic_settings import BaseSettings
-from typing import List, Dict
+from typing import List, Dict, Optional
 from dotenv import load_dotenv
 
 # Load .env file
@@ -29,6 +29,21 @@ class Settings(BaseSettings):
     DOCS_URL: str = "/docs"
     REDOC_URL: str = "/redoc"
     OPENAPI_URL: str = "/openapi.json"
+    
+    # OpenAI settings
+    OPENAI_API_KEY: Optional[str] = None
+    
+    # Devskiller settings
+    DEVSKILLER_API_KEY: Optional[str] = None
+    DEVSKILLER_USERNAME: Optional[str] = None
+    DEVSKILLER_PASSWORD: Optional[str] = None
+    
+    # Browserbase settings
+    BROWSERBASE_API_KEY: Optional[str] = None
+    BROWSERBASE_PROJECT_ID: Optional[str] = None
+    
+    # Redis settings
+    REDIS_CONN_STRING: Optional[str] = None
     
     class Config:
         case_sensitive = True
