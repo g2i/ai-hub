@@ -8,28 +8,22 @@ from app.core.config import settings
 from app.middleware.auth import authenticate_request
 from app.api.v1.api import api_router
 from app.core.logging import get_logger
-
+from app.services.devskiller import Devskiller
 logger = get_logger("app.main")
 
-# @asynccontextmanager
-# async def lifespan(app: FastAPI):
-#     # Startup: setup background tasks
-#     update = None
-  
-    
-#     # Start the background task
-#     # update = await update_devskiller_cookies()
-    
-#     yield  # This is where FastAPI serves the application
-    
-#     if update and hasattr(update, "cancel"):
-#         update.cancel()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    update = None
+    update = await update_devskiller_cookies()
+    yield
+    if update and hasattr(update, "cancel"):
+        update.cancel()
 
-
-# @repeat_every(seconds=60 * 60 * 24)  # Run every 24 hours
-# async def update_devskiller_cookies() -> None:
-#     print("Update DevSkiller Cookies..")
-
+@repeat_every(seconds=60 * 60 * 12)
+async def update_devskiller_cookies() -> None:
+    service =  Devskiller()
+    await service.update_cookies()
+    
 def create_application() -> FastAPI:
     """
     Initialize and configure the FastAPI application.
@@ -52,7 +46,7 @@ def create_application() -> FastAPI:
         docs_url=settings.DOCS_URL,
         redoc_url=settings.REDOC_URL,
         openapi_url=settings.OPENAPI_URL,
-        # lifespan=lifespan,
+        lifespan=lifespan,
     )
     
     # Add CORS middleware
