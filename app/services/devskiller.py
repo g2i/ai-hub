@@ -55,7 +55,7 @@ class Devskiller:
         
     async def update_cookies(self):
         async with async_playwright() as playwright:
-            await self.init_browser(playwright, headless=False)
+            await self.init_browser(playwright, headless=true)
 
             if not self.username or not self.password:
                 raise ValueError("DevSkiller credentials not provided.")
