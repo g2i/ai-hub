@@ -148,7 +148,7 @@ class Devskiller:
                 
                 # Initialise browser *with the stored cookies pre-loaded* so the
                 # very first navigation already carries the correct Cookie header.
-                await self.init_browser(playwright, headless=False, storage_cookies=redis_cookies)
+                await self.init_browser(playwright, storage_cookies=redis_cookies)
 
                 # Navigate to target video page with retry mechanism
                 max_retries = 3
