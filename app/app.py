@@ -15,6 +15,7 @@ logger = get_logger("app.main")
 async def lifespan(app: FastAPI):
     update = None
     update = await update_devskiller_cookies()
+    print("DevSkiller Cookies Updated")
     yield
     if update and hasattr(update, "cancel"):
         update.cancel()
