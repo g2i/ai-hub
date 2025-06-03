@@ -20,9 +20,13 @@ async def lifespan(app: FastAPI):
     if update and hasattr(update, "cancel"):
         update.cancel()
 
-@repeat_every(seconds=60 * 60 * 12)
+@repeat_every(
+    seconds=60 * 60 * 12,
+    raise_exceptions=True,
+    logger=logger,
+)
 async def update_devskiller_cookies() -> None:
-    service =  Devskiller()
+    service = Devskiller()
     await service.update_cookies()
     
 def create_application() -> FastAPI:
