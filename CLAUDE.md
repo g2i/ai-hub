@@ -25,14 +25,32 @@ python main.py
 hypercorn app.app:app --reload --bind 0.0.0.0:8000
 ```
 
+### Running Background Tasks with Celery
+
+The application uses Celery for background tasks (video processing, DevSkiller cookie updates). You need to run Celery workers:
+
+```bash
+# Run Celery worker (required for background tasks)
+celery -A app.core.celery_app worker --loglevel=info
+
+# Run Celery Beat scheduler (for periodic tasks like cookie updates every 12 hours)
+celery -A app.core.celery_app beat --loglevel=info
+
+# Or run both together (development only)
+celery -A app.core.celery_app worker --beat --loglevel=info
+```
+
 ### Environment Variables
 
 The following environment variables are required:
 
-- `DOCLING_API_TOKEN`: Authentication token to validate client requests
+- `API_KEY`: Bearer token for authenticating API requests (e.g., "123")
 - `DOCLING_API_URL`: (Optional) URL of the Docling Serve API (defaults to internal Railway service)
 - `DOCLING_SERVICE_NAME`: (Optional) Name of the service (defaults to "docling-serve-cpu")
 - `DOCLING_SERVICE_PORT`: (Optional) Port of the service (defaults to "3000")
+- `REDIS_CONN_STRING`: Redis connection URL for Celery and caching
+- `DEVSKILLER_USERNAME`: DevSkiller login email
+- `DEVSKILLER_PASSWORD`: DevSkiller login password
 
 These variables should be defined in a `.env` file in the project root.
 
@@ -77,8 +95,16 @@ app/
      - Status polling: `/api/v1/document/status/poll/{task_id}`
      - Result retrieval: `/api/v1/document/result/{task_id}`
    - Agent capabilities (`/api/v1/agents`)
+   - DevSkiller endpoints:
+     - Cookie refresh: `POST /api/v1/devskiller/refresh` (triggers background update)
+     - Cookie status: `GET /api/v1/devskiller/status` (check update status)
+   - Video processing:
+     - Submit video: `POST /api/v1/video/process`
+     - Check status: `GET /api/v1/video/status/{candidate_id}/{invitation_id}`
 
-2. **Authentication Middleware**: Validates all requests against a configured API token
+2. **Authentication Middleware**: Validates all requests using Bearer token authentication
+   - Header format: `Authorization: Bearer <API_KEY>`
+   - Configure via `API_KEY` environment variable
 
 3. **Service Modules**: Encapsulate interactions with external services
    - `DoclingService`: Handles communication with the Docling Serve API with configurable timeouts:

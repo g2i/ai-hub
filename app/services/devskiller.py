@@ -99,20 +99,23 @@ class Devskiller:
                 await asyncio.sleep(3)
                 
                 # Try to navigate to the base URL with retry mechanism
-                max_retries = 3
+                max_retries = 5
                 for attempt in range(max_retries):
                     try:
                         print(f"Navigating to {self.base_url} (attempt {attempt+1}/{max_retries})...")
                         # Use a longer timeout and different wait strategy
-                        await self._page.goto(self.base_url, timeout=30000, wait_until="domcontentloaded")
+                        await self._page.goto(self.base_url, timeout=60000, wait_until="domcontentloaded")
                         # Wait for network to be idle after page load
-                        await self._page.wait_for_load_state("networkidle", timeout=15000)
+                        await self._page.wait_for_load_state("networkidle", timeout=20000)
+                        print(f"Successfully navigated to {self.base_url}")
                         break
                     except Exception as e:
-                        print(f"Navigation error: {str(e)}")
+                        print(f"Navigation error on attempt {attempt+1}: {str(e)}")
                         if attempt < max_retries - 1:
-                            # Wait before retry
-                            await asyncio.sleep(2)
+                            # Exponential backoff: 2, 4, 8, 16 seconds
+                            wait_time = 2 ** (attempt + 1)
+                            print(f"Waiting {wait_time} seconds before retry...")
+                            await asyncio.sleep(wait_time)
                         else:
                             print("Max retries reached, continuing with current state")
                 

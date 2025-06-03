@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health, document, agents, video
+from app.api.v1.endpoints import health, document, agents, video, devskiller_cookies
 
 api_router = APIRouter()
 
@@ -31,4 +31,8 @@ api_router.include_router(
     tags=["video"]
 )
 
-# Add additional route inclusions here as the application expands
+api_router.include_router(
+    devskiller_cookies.router,
+    prefix="/devskiller",
+    tags=["devskiller"],
+)

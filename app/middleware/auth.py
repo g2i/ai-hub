@@ -7,9 +7,8 @@ logger = get_logger("app.middleware.auth")
 
 # Paths that require API token authentication
 AUTH_REQUIRED_PREFIXES = [
-    # Document processing endpoints
-    f"{settings.API_V1_STR}/document/",
-    # Future protected endpoints can be added here
+    # All API v1 endpoints require authentication by default
+    settings.API_V1_STR,
 ]
 
 # Paths that explicitly don't require authentication
@@ -19,8 +18,11 @@ AUTH_EXCLUDED_PATHS = [
     settings.OPENAPI_URL,
     settings.REDOC_URL,
     f"{settings.API_V1_STR}/health",
-    # Agent endpoints temporarily excluded until authentication strategy is determined
-    f"{settings.API_V1_STR}/agents",
+]
+
+# Exact paths that don't require authentication (not prefixes)
+AUTH_EXCLUDED_EXACT_PATHS = [
+    "/",  # Root path only
 ]
 
 async def authenticate_request(request: Request, call_next):
@@ -31,10 +33,18 @@ async def authenticate_request(request: Request, call_next):
     Paths in AUTH_EXCLUDED_PATHS always bypass authentication.
     """
     path = request.url.path
+    logger.debug(f"Auth middleware processing: {path}")
+    
+    # Check if the exact path is excluded
+    if path in AUTH_EXCLUDED_EXACT_PATHS:
+        logger.debug(f"Path {path} is excluded from auth (exact match)")
+        response = await call_next(request)
+        return response
     
     # Check if the path is explicitly excluded from authentication
     for excluded_path in AUTH_EXCLUDED_PATHS:
-        if path.startswith(excluded_path):
+        if excluded_path and path.startswith(excluded_path):
+            logger.debug(f"Path {path} is excluded from auth (matches {excluded_path})")
             response = await call_next(request)
             return response
     
@@ -43,22 +53,24 @@ async def authenticate_request(request: Request, call_next):
     for prefix in AUTH_REQUIRED_PREFIXES:
         if path.startswith(prefix):
             requires_auth = True
+            logger.debug(f"Path {path} requires auth (matches {prefix})")
             break
     
     # If the path doesn't require authentication, continue
     if not requires_auth:
+        logger.debug(f"Path {path} does not require auth")
         response = await call_next(request)
         return response
     
-    # Path requires authentication, so verify Docling API token configuration
-    if not settings.DOCLING_API_TOKEN:
-        logger.critical("Proxy configuration error: DOCLING_API_TOKEN not set.")
+    # Path requires authentication, so verify API key configuration
+    if not settings.API_KEY:
+        logger.critical("Proxy configuration error: API_KEY not set.")
         logger.critical("Make sure environment variables are properly loaded from .env file.")
         return JSONResponse(
             status_code=503, 
             content={
-                "detail": "Service unavailable: Configuration error - API token not set", 
-                "message": "The API token is not configured. Please check the server configuration."
+                "detail": "Service unavailable: Configuration error - API key not set", 
+                "message": "The API key is not configured. Please check the server configuration."
             }
         )
 
@@ -80,7 +92,7 @@ async def authenticate_request(request: Request, call_next):
 
     # Validate token
     token = parts[1]
-    if token != settings.DOCLING_API_TOKEN:
+    if token != settings.API_KEY:
         logger.warning("Authentication attempt with invalid token")
         return JSONResponse(
             status_code=401, 

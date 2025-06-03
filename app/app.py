@@ -1,33 +1,27 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_utilities import repeat_every
-import logging
 from contextlib import asynccontextmanager
 
 from app.core.config import settings
 from app.middleware.auth import authenticate_request
 from app.api.v1.api import api_router
 from app.core.logging import get_logger
-from app.services.devskiller import Devskiller
+
 logger = get_logger("app.main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    update = None
-    update = await update_devskiller_cookies()
-    print("DevSkiller Cookies Updated")
+    # Schedule cookie update task to run in background after startup
+    # This prevents blocking the event loop during app initialization
+    from app.services.devskiller_tasks import update_cookies_task
+    
+    logger.info("Scheduling initial DevSkiller cookie update...")
+    # Queue the task to Celery - this returns immediately
+    update_cookies_task.delay()
+    
     yield
-    if update and hasattr(update, "cancel"):
-        update.cancel()
-
-@repeat_every(
-    seconds=60 * 60 * 12,
-    raise_exceptions=True,
-    logger=logger,
-)
-async def update_devskiller_cookies() -> None:
-    service = Devskiller()
-    await service.update_cookies()
+    # Cleanup if needed
+    logger.info("Shutting down...")
     
 def create_application() -> FastAPI:
     """
@@ -36,11 +30,11 @@ def create_application() -> FastAPI:
     # Log configuration information
     logger.info(f"Starting {settings.PROJECT_NAME}")
     
-    # Only log a warning about missing API token at startup, but don't prevent the app from starting
-    if not settings.DOCLING_API_TOKEN:
-        logger.warning("No DOCLING_API_TOKEN configured. Document processing endpoints will return 503 errors.")
+    # Only log a warning about missing API key at startup, but don't prevent the app from starting
+    if not settings.API_KEY:
+        logger.warning("No API_KEY configured. API endpoints will return 503 errors.")
     else:
-        logger.info("API Token configured successfully")
+        logger.info("API Key configured successfully")
     
     logger.info(f"API URL: {settings.DOCLING_API_URL}")
     

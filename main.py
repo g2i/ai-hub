@@ -20,8 +20,8 @@ logging.config.dictConfig(DEFAULT_LOGGING_CONFIG)
 logger = logging.getLogger("app.main")
 
 # Check for critical environment variables
-if not os.getenv("DOCLING_API_TOKEN"):
-    logger.critical("DOCLING_API_TOKEN environment variable is not set.")
+if not os.getenv("API_KEY"):
+    logger.critical("API_KEY environment variable is not set.")
     logger.critical("The application will not function correctly without it.")
     logger.critical("Make sure the .env file exists and contains the required variables.")
 

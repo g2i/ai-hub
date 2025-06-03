@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "G2i AI Hub"
     
-    # Docling Serve configuration
-    DOCLING_API_TOKEN: str = os.getenv("DOCLING_API_TOKEN", "")
+    # API Authentication
+    API_KEY: str = os.getenv("API_KEY", "")
     DOCLING_SERVICE_NAME: str = os.getenv("DOCLING_SERVICE_NAME", "docling-serve-cpu")
     DOCLING_SERVICE_PORT: str = os.getenv("DOCLING_SERVICE_PORT", "3000")
     DOCLING_API_URL: str = os.getenv(

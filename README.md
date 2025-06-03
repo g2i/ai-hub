@@ -23,7 +23,7 @@ pip install -r requirements.txt
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env to add your DOCLING_API_TOKEN
+# Edit .env to add your API_KEY
 ```
 
 ### Running
@@ -38,8 +38,8 @@ python main.py
 Create a `.env` file with these variables:
 
 ```
-# Required for document processing endpoints
-DOCLING_API_TOKEN=your_api_token_here
+# Required for API authentication
+API_KEY=your_api_key_here
 
 # Optional (defaults shown)
 DOCLING_API_URL=http://docling-serve-cpu.railway.internal:3000
