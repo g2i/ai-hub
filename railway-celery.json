@@ -2,7 +2,7 @@
   "$schema": "https://schema.up.railway.app/railway.schema.json",
   "build": {
     "builder": "NIXPACKS",
-    "buildCommand": "playwright install chromium"
+    "buildCommand": "playwright install --with-deps chromium"
   },
   "deploy": {
     "startCommand": "celery -A app.core.celery_app worker --loglevel=info",
