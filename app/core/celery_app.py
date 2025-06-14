@@ -29,7 +29,7 @@ celery_app = Celery(
 celery_app.conf.beat_schedule = {
     'update-devskiller-cookies': {
         'task': 'app.services.devskiller_tasks.update_cookies_task',
-        'schedule': crontab(minute=0, hour='*/12'),  # Every 12 hours
+        'schedule': crontab(minute=0, hour='*/4'),  # Every 4 hours
     },
 }
 
