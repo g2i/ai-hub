@@ -14,9 +14,6 @@ AUTH_REQUIRED_PREFIXES = [
 # Paths that explicitly don't require authentication
 AUTH_EXCLUDED_PATHS = [
     "/health",
-    settings.DOCS_URL,
-    settings.OPENAPI_URL,
-    settings.REDOC_URL,
     f"{settings.API_V1_STR}/health",
 ]
 

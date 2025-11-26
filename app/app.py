@@ -42,9 +42,9 @@ def create_application() -> FastAPI:
         title=settings.PROJECT_NAME,
         description="AI Hub providing document processing and AI services",
         version="0.1.0",
-        docs_url=settings.DOCS_URL,
-        redoc_url=settings.REDOC_URL,
-        openapi_url=settings.OPENAPI_URL,
+        docs_url=settings.DOCS_URL if settings.DOCS_ENABLED else None,
+        redoc_url=settings.REDOC_URL if settings.DOCS_ENABLED else None,
+        openapi_url=settings.OPENAPI_URL if settings.DOCS_ENABLED else None,
         lifespan=lifespan,
     )
     

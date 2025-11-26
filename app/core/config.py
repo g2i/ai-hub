@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     RESULT_FETCH_TIMEOUT: float = 60.0
     
     # API Documentation settings
+    # Set DOCS_ENABLED=true to expose /docs, /redoc, /openapi.json (disabled by default for security)
+    DOCS_ENABLED: bool = os.getenv("DOCS_ENABLED", "false").lower() == "true"
     DOCS_URL: str = "/docs"
     REDOC_URL: str = "/redoc"
     OPENAPI_URL: str = "/openapi.json"
