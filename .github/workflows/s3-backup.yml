@@ -4,7 +4,12 @@ on:
   push:
     branches:
       - main
+      - feat/s3_backup
   workflow_dispatch: # Keeps the manual trigger option
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   backup:
