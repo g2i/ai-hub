@@ -1,0 +1,35 @@
+name: Event-Driven S3 Backup
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # Keeps the manual trigger option
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Ensures full history and all branches are bundled
+
+      - name: Create Git Bundle
+        run: git bundle create repo-backup.bundle --all
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_VCS_BACKUPS }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_VCS_BACKUPS }}
+          aws-region: us-east-1
+
+      - name: Upload to S3
+        run: |
+          # Use both date and short SHA to ensure unique filenames for multiple pushes per day
+          TIMESTAMP=$(date +%Y-%m-%d-%H%M)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          REPO_NAME=$(echo "${{ github.repository }}" | cut -d'/' -f2)
+          
+          aws s3 cp repo-backup.bundle s3://g2i-vcs-backups/$REPO_NAME.bundle
