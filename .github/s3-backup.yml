@@ -19,10 +19,9 @@ jobs:
         run: git bundle create repo-backup.bundle --all
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v3
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_VCS_BACKUPS }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_VCS_BACKUPS }}
+          role-to-assume: arn:aws:iam::866317130647:role/Github_OIDC
           aws-region: us-east-1
 
       - name: Upload to S3
