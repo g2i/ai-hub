@@ -18,8 +18,9 @@ browserbase==1.4.0
     # via api-proxy (pyproject.toml)
 celery==5.5.3
     # via api-proxy (pyproject.toml)
-certifi==2025.6.15
+certifi==2026.10.19
     # via
+    #   api-proxy (pyproject.toml)
     #   httpcore
     #   httpx
     #   requests
